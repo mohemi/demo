@@ -1,0 +1,162 @@
+//
+//  ViewController.m
+//  iOS14Test
+//
+//  Created by Siao on 2020/8/26.
+//
+
+#import "ViewController.h"
+#import <PhotosUI/PhotosUI.h>
+#import "PickerVC.h"
+
+@interface ViewController () <UINavigationControllerDelegate, UIImagePickerControllerDelegate, PHPickerViewControllerDelegate>
+@property (nonatomic, assign) BOOL isDoing;
+
+@property (nonatomic, strong) UIImagePickerController *picker;
+@property (weak, nonatomic) IBOutlet UIImageView *imageView;
+@end
+
+@implementation ViewController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.picker.delegate = self;
+    self.picker.allowsEditing = NO;
+    
+}
+
+#pragma mark -
+
+- (IBAction)openPickerAciton:(id)sender
+{
+    self.isDoing = NO;
+    
+    if (self.isDoing) {
+        return;
+    }
+    
+    if ([UIImagePickerController isSourceTypeAvailable:UIImagePickerControllerSourceTypePhotoLibrary] == NO) {
+        return;
+    }
+    self.picker.sourceType = UIImagePickerControllerSourceTypePhotoLibrary;
+    self.isDoing = YES;
+    [self presentViewController:self.picker animated:YES completion:nil];
+}
+
+- (IBAction)openNewPicker:(id)sender
+{
+    //三种过滤类型
+    PHPickerFilter *imagesFilter = PHPickerFilter.imagesFilter;
+    PHPickerFilter *videosFilter = PHPickerFilter.videosFilter;
+    PHPickerFilter *livePhotosFilter = PHPickerFilter.livePhotosFilter;
+
+    PHPickerConfiguration *configuration = [[PHPickerConfiguration alloc] init];
+    configuration.filter = [PHPickerFilter anyFilterMatchingSubfilters:@[imagesFilter]]; // 可配置查询用户相册中文件的类型，支持三种
+    configuration.selectionLimit = 0; // 默认为1，为0为跟随系统上限
+     
+    PHPickerViewController *picker = [[PHPickerViewController alloc] initWithConfiguration:configuration];
+    picker.delegate = self;
+    [self presentViewController:picker animated:YES completion:nil];
+}
+
+- (IBAction)openCamera:(id)sender
+{
+    [[PHPhotoLibrary sharedPhotoLibrary] presentLimitedLibraryPickerFromViewController:self];
+}
+
+- (IBAction)openCustomPicker:(id)sender
+{
+    PickerVC *picker = [PickerVC new];
+    UINavigationController *nv = [[UINavigationController alloc] initWithRootViewController:picker];
+    [self presentViewController:nv animated:YES completion:nil];
+}
+
+- (IBAction)requestAuth:(id)sender
+{
+    
+    // 请求权限，需注意 limited 权限尽在 accessLevel 为 readAndWrite 时生效
+    PHAccessLevel level1 = PHAccessLevelAddOnly;// 仅允许添加照片
+    PHAccessLevel level2 = PHAccessLevelReadWrite;// 允许访问照片，limitedLevel 必须为 readWrite
+    [PHPhotoLibrary requestAuthorizationForAccessLevel:level2 handler:^(PHAuthorizationStatus status) {
+      switch (status) {
+          case PHAuthorizationStatusLimited:
+              NSLog(@"limited");
+              break;
+          case PHAuthorizationStatusDenied:
+              NSLog(@"denied");
+              break;
+          case PHAuthorizationStatusAuthorized:
+              NSLog(@"authorized");
+              break;
+          default:
+              break;
+      }
+    }];
+}
+
+- (IBAction)checkAuth:(id)sender
+{
+    PHAccessLevel level1 = PHAccessLevelAddOnly;// 仅允许添加照片
+    PHAccessLevel level2 = PHAccessLevelReadWrite;// 允许访问照片，limitedLevel 必须为 readWrite
+    PHAuthorizationStatus status = [PHPhotoLibrary authorizationStatusForAccessLevel:level2];//查询权限
+      switch (status) {
+          case PHAuthorizationStatusLimited:
+              NSLog(@"limited");
+              break;
+          case PHAuthorizationStatusDenied:
+              NSLog(@"denied");
+              break;
+          case PHAuthorizationStatusAuthorized:
+              NSLog(@"authorized");
+              break;
+          default:
+              break;
+    }
+}
+
+#pragma mark -
+
+- (void)imagePickerController:(UIImagePickerController *)picker didFinishPickingMediaWithInfo:(NSDictionary<NSString *,id> *)info
+{
+    UIImage *image = info[UIImagePickerControllerOriginalImage];
+    self.imageView.image = image;
+    
+    [picker dismissViewControllerAnimated:YES completion:nil];
+}
+
+- (void)imagePickerControllerDidCancel:(UIImagePickerController *)picker
+{
+    [picker dismissViewControllerAnimated:YES completion:nil];
+}
+
+- (void)picker:(PHPickerViewController *)picker didFinishPicking:(NSArray<PHPickerResult *> *)results API_AVAILABLE(ios(14)) {
+    [picker dismissViewControllerAnimated:YES completion:nil];
+     if (!results || !results.count) {
+         return;
+     }
+     NSItemProvider *itemProvider = results.firstObject.itemProvider;
+     if ([itemProvider canLoadObjectOfClass:UIImage.class]) {
+         __weak typeof(self) weakSelf = self;
+         //异步获取
+         [itemProvider loadObjectOfClass:UIImage.class completionHandler:^(__kindof id<NSItemProviderReading>  _Nullable object, NSError * _Nullable error) {
+             if ([object isKindOfClass:UIImage.class]) {
+                 __strong typeof(self) strongSelf = weakSelf;
+                 dispatch_async(dispatch_get_main_queue(), ^{
+                     strongSelf.imageView.image = (UIImage *)object;
+                 });
+             }
+         }];
+     }
+}
+#pragma mark -
+
+- (UIImagePickerController *)picker
+{
+    if (!_picker) {
+        _picker = [[UIImagePickerController alloc]init];
+    }
+    return _picker;
+}
+
+
+@end
